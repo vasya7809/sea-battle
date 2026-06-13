@@ -17,7 +17,10 @@ export class GameServer {
       socket.on("error", () => this.handleClose(socket));
     });
 
-    console.log(`SeaBattle server started on ws://0.0.0.0:${(this.wss.address() as any).port}`);
+    // В окружениях типа Render адрес может быть ещё не доступен через this.wss.address()
+    // используем значение `port`, которое мы уже получили из env или по умолчанию.
+    const boundPort = port;
+    console.log(`SeaBattle server started on ws://0.0.0.0:${boundPort}`);
   }
 
   private handleMessage(socket: WebSocket, raw: string) {

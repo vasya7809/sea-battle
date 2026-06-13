@@ -10,7 +10,7 @@ export class GameServer {
   private rooms = new Map<string, Room>();
 
   start() {
-    const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+    const port = process.env.PORT ? Number(process.env.PORT) : 10000;
 
     // Создаём express приложение, чтобы отдавать статичную клиентскую сборку
     const app = express();

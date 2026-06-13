@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "npm install",
     "build": "tsc",
     "start": "node ./dist/server/index.js"
   },

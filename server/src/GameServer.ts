@@ -7,7 +7,8 @@ export class GameServer {
   private rooms = new Map<string, Room>();
 
   start() {
-    this.wss = new WebSocketServer({ port: 3000, host: "0.0.0.0" });
+    const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+    this.wss = new WebSocketServer({ port, host: "0.0.0.0" });
 
     this.wss.on("connection", (socket) => {
       console.log("Client connected");
@@ -16,7 +17,7 @@ export class GameServer {
       socket.on("error", () => this.handleClose(socket));
     });
 
-    console.log("SeaBattle server started on ws://localhost:3000");
+    console.log(`SeaBattle server started on ws://0.0.0.0:${(this.wss.address() as any).port}`);
   }
 
   private handleMessage(socket: WebSocket, raw: string) {
@@ -47,16 +48,19 @@ export class GameServer {
 
   private handleJoin(socket: WebSocket) {
     const queued = this.waitingClients.shift();
+    console.log(`handleJoin: queued present? ${queued ? "yes" : "no"}, waitingClients now ${this.waitingClients.length}`);
     if (queued) {
       const roomId = this.createRoomId();
       const room = new Room(roomId, [queued, socket]);
       this.rooms.set(roomId, room);
+      console.log(`Created room ${roomId} for two players`);
       this.send(queued, { type: "matched", playerNumber: 1 });
       this.send(socket, { type: "matched", playerNumber: 2 });
       this.send(queued, { type: "status", message: "Суперник знайдений. Розставте кораблі." });
       this.send(socket, { type: "status", message: "Суперник знайдений. Розставте кораблі." });
     } else {
       this.waitingClients.push(socket);
+      console.log(`Added client to waitingClients (count=${this.waitingClients.length})`);
       this.send(socket, { type: "status", message: "Очікування суперника..." });
     }
   }

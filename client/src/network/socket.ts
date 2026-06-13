@@ -46,8 +46,13 @@ export interface SocketHandlers {
 }
 
 export const connectSocket = (handlers: SocketHandlers): WebSocket => {
-  const hostname = window.location.hostname;
-  const socket = new WebSocket(`ws://${hostname}:3000`);
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  // Allow overriding the websocket URL via (in order): Vite env VITE_WS_URL, global variable, or hostname:3000
+  // import.meta.env is available at build time when using Vite
+  const viteOverride = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_WS_URL) as string | undefined;
+  const globalOverride = (window as any).__SEA_WS_URL__ as string | undefined;
+  const resolved = viteOverride ?? globalOverride ?? `${window.location.hostname}:3000`;
+  const socket = new WebSocket(`${protocol}://${resolved}`);
 
   socket.addEventListener("open", () => {
     handlers.onOpen?.();
@@ -93,6 +98,7 @@ export const connectSocket = (handlers: SocketHandlers): WebSocket => {
   });
 
   socket.addEventListener("error", () => {
+    console.error("WebSocket error");
     handlers.onStatus?.("Не вдалося підключитися до сервера.");
   });
 

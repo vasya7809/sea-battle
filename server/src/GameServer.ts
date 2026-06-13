@@ -1,5 +1,8 @@
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import { Room } from "./Room";
+import express from "express";
+import http from "http";
+import path from "path";
 
 export class GameServer {
   private wss!: WebSocketServer;
@@ -8,7 +11,17 @@ export class GameServer {
 
   start() {
     const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-    this.wss = new WebSocketServer({ port, host: "0.0.0.0" });
+
+    // Создаём express приложение, чтобы отдавать статичную клиентскую сборку
+    const app = express();
+    const clientDist = path.join(__dirname, "../../client/dist");
+    app.use(express.static(clientDist));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(clientDist, "index.html"));
+    });
+
+    const server = http.createServer(app);
+    this.wss = new WebSocketServer({ server });
 
     this.wss.on("connection", (socket: WebSocket) => {
       console.log("Client connected");
@@ -17,10 +30,9 @@ export class GameServer {
       socket.on("error", () => this.handleClose(socket));
     });
 
-    // В окружениях типа Render адрес может быть ещё не доступен через this.wss.address()
-    // используем значение `port`, которое мы уже получили из env или по умолчанию.
-    const boundPort = port;
-    console.log(`SeaBattle server started on ws://0.0.0.0:${boundPort}`);
+    server.listen(port, () => {
+      console.log(`SeaBattle server started on ws://0.0.0.0:${port}`);
+    });
   }
 
   private handleMessage(socket: WebSocket, raw: string) {

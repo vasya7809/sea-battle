@@ -3,18 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "prebuild": "npm install && cd client && npm ci && npm run build && cd ..",
+    "prebuild": "npm install",
     "build": "tsc",
     "start": "node ./dist/server/index.js"
   },
   "dependencies": {
     "@types/node": "^25.9.3",
     "@types/ws": "^8.18.1",
-    "express": "^4.18.2",
     "typescript": "^5.9.3",
     "ws": "^8.13.0"
   },
-  "devDependencies": {
-    "@types/express": "^5.0.6"
-  }
+  "devDependencies": {}
 }

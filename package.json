@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "prebuild": "npm install && cd client && npm ci && npm run build && cd ..",
-    "build": "tsc",
+    "build:client": "cd client && npm install && npm run build",
+    "build:server": "tsc",
+    "build": "npm run build:client && npm run build:server",
     "start": "node ./dist/server/index.js"
   },
   "dependencies": {

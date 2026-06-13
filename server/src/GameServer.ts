@@ -1,4 +1,4 @@
-import { WebSocket, WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer, type RawData } from "ws";
 import { Room } from "./Room";
 
 export class GameServer {
@@ -10,9 +10,9 @@ export class GameServer {
     const port = process.env.PORT ? Number(process.env.PORT) : 3000;
     this.wss = new WebSocketServer({ port, host: "0.0.0.0" });
 
-    this.wss.on("connection", (socket) => {
+    this.wss.on("connection", (socket: WebSocket) => {
       console.log("Client connected");
-      socket.on("message", (message) => this.handleMessage(socket, message.toString()));
+      socket.on("message", (message: RawData) => this.handleMessage(socket, message.toString()));
       socket.on("close", () => this.handleClose(socket));
       socket.on("error", () => this.handleClose(socket));
     });
@@ -21,14 +21,15 @@ export class GameServer {
   }
 
   private handleMessage(socket: WebSocket, raw: string) {
-    let payload;
+    let payload: unknown;
     try {
       payload = JSON.parse(raw);
     } catch {
       return;
     }
 
-    switch (payload.type) {
+    const data = payload as { type?: string } & Record<string, unknown>;
+    switch (data.type) {
       case "join":
         this.handleJoin(socket);
         break;
@@ -85,7 +86,7 @@ export class GameServer {
     }
   }
 
-  private forwardToOpponent(socket: WebSocket, payload: any) {
+  private forwardToOpponent(socket: WebSocket, payload: unknown) {
     const opponent = this.findOpponent(socket);
     if (!opponent) {
       this.send(socket, { type: "status", message: "Суперник не підключений." });

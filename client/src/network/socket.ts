@@ -47,12 +47,15 @@ export interface SocketHandlers {
 
 export const connectSocket = (handlers: SocketHandlers): WebSocket => {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  // Allow overriding the websocket URL via (in order): Vite env VITE_WS_URL, global variable, or hostname:3000
-  // import.meta.env is available at build time when using Vite
+  // Allow overriding the websocket URL via (in order): Vite env VITE_WS_URL, global variable, or the current browser host.
+  // `VITE_WS_URL` may include a full ws:// or wss:// URL, or just host[:port].
   const viteOverride = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_WS_URL) as string | undefined;
   const globalOverride = (window as any).__SEA_WS_URL__ as string | undefined;
-  const resolved = viteOverride ?? globalOverride ?? `${window.location.hostname}:3000`;
-  const socket = new WebSocket(`${protocol}://${resolved}`);
+  const resolved = viteOverride ?? globalOverride ?? window.location.host;
+  const socketUrl = resolved.startsWith("ws://") || resolved.startsWith("wss://")
+    ? resolved
+    : `${protocol}://${resolved}`;
+  const socket = new WebSocket(socketUrl);
 
   socket.addEventListener("open", () => {
     handlers.onOpen?.();

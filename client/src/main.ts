@@ -460,6 +460,8 @@ function handleSocketShoot(x: number, y: number) {
     return;
   }
 
+  showLastMove(x, y, "player");
+
   renderBoards();
   sendSocketMessage({
     type: "shotResult",

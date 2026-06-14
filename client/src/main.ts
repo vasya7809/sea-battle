@@ -1,4 +1,4 @@
-﻿import "./style.css";
+﻿﻿import "./style.css";
 import { Game } from "./classes/Game";
 import type { ShotResult } from "./classes/Game";
 import { CellState } from "./classes/Cell";
@@ -7,7 +7,7 @@ import { connectSocket } from "./network/socket";
 const app = document.getElementById("app");
 const game = new Game();
 
-type UIStage = "menu" | "placement" | "battle";
+type UIStage = "menu" | "placement" | "battle" | "ended";
 let uiStage: UIStage = "menu";
 
 type GameMode = "bot" | "online";
@@ -23,6 +23,7 @@ let connectionStatus = "Оберіть режим гри";
 let botTargetQueue: { x: number; y: number }[] = [];
 let showVictoryModal = false;
 let victoryMessage = "";
+let hasClickedStart = false;
 
 function createBoard(title: string, owner: "player" | "enemy"): HTMLElement {
   const boardContainer = document.createElement("section");
@@ -104,11 +105,15 @@ function updatePlacementInfo() {
   }
 
   if (game.phase === "placement") {
-    const size = game.shipSizes[nextShipIndex];
-    if (gameMode === "online") {
-      placementInfo.textContent = `Розташуйте корабель розміром ${size}, орієнтація: ${orientation}. Після розстановки чекайте суперника.`;
+    if (nextShipIndex < game.shipSizes.length) {
+      const size = game.shipSizes[nextShipIndex];
+      if (gameMode === "online") {
+        placementInfo.textContent = `Розташуйте корабель розміром ${size}, орієнтація: ${orientation}. Після розстановки чекайте суперника.`;
+      } else {
+        placementInfo.textContent = `Розташуйте корабель розміром ${size}, орієнтація: ${orientation}.`;
+      }
     } else {
-      placementInfo.textContent = `Розташуйте корабель розміром ${size}, орієнтація: ${orientation}.`;
+      placementInfo.textContent = "Усі кораблі розставлені. Очікуйте або розпочинайте бій.";
     }
   } else if (game.phase === "battle") {
     placementInfo.textContent = "Ведете бій. Виберіть клітинку на полі супротивника.";
@@ -212,6 +217,7 @@ function handleEnemyBoardClick(x: number, y: number) {
     renderBoards();
 
     if (result.winner) {
+      uiStage = "ended";
       updateStatus(`Переможець: ${game.winner?.nickname}`);
       openVictoryModal(game.winner?.nickname === "Ви" ? "Ви перемогли!" : "Ви програли...");
       renderUI();
@@ -236,7 +242,10 @@ function handleEnemyBoardClick(x: number, y: number) {
 
 function getBotTarget() {
   while (botTargetQueue.length > 0) {
-    const target = botTargetQueue.shift()!;
+    const target = botTargetQueue.shift();
+    if (!target) {
+      continue;
+    }
     const cell = game.player1.board.getCell(target.x, target.y);
     if (!cell) {
       continue;
@@ -325,6 +334,7 @@ function cpuTurn() {
     renderBoards();
 
     if (result.winner) {
+      uiStage = "ended";
       updateStatus(`Переможець: ${game.winner?.nickname}`);
       openVictoryModal(game.winner?.nickname === "Ви" ? "Ви перемогли!" : "Ви програли...");
       renderUI();
@@ -475,6 +485,7 @@ function handleSocketShoot(x: number, y: number) {
   });
 
   if (game.phase === "ended") {
+    uiStage = "ended";
     updateStatus("Ви програли. Суперник знищив усі ваші кораблі.");
     openVictoryModal("Ви програли...");
     renderUI();
@@ -488,6 +499,7 @@ function handleSocketShotResult(message: ShotResult & { x: number; y: number; su
   renderBoards();
 
   if (message.winner) {
+    uiStage = "ended";
     game.phase = "ended";
     game.winner = game.player1;
     updateStatus("Ви перемогли!");
@@ -526,6 +538,10 @@ function connectToServer() {
     onOpponentReady() {
       opponentReady = true;
       updateStatus("Суперник готовий.");
+      if (hasClickedStart && localReady) {
+        uiStage = "battle";
+        startBattle();
+      }
       renderUI();
     },
     onShoot(x, y) {
@@ -553,6 +569,7 @@ function startGame() {
   orientation = "horizontal";
   localReady = false;
   opponentReady = false;
+  hasClickedStart = false;
   playerNumber = 1;
   botTargetQueue = [];
 
@@ -630,7 +647,7 @@ function renderUI() {
             <option value="bot" ${gameMode === "bot" ? "selected" : ""}>Проти бота</option>
             <option value="online" ${gameMode === "online" ? "selected" : ""}>Проти гравця</option>
           </select>
-          ${uiStage === "menu" || uiStage === "ended" ? '<button id="newGameBtn" class="primary-btn">Нова гра</button>' : ''}
+          ${uiStage === "ended" ? '<button id="newGameBtn" class="primary-btn">Нова гра</button>' : ''}
           <button id="rotateBtn" class="secondary-btn">Поворот: ${orientation === "horizontal" ? "Горизонтально" : "Вертикально"}</button>
         </div>
         <div class="connection-status" id="connectionStatus">${connectionStatus}</div>
@@ -687,14 +704,18 @@ function renderUI() {
 
   rotateBtn?.addEventListener("click", () => {
     orientation = orientation === "horizontal" ? "vertical" : "horizontal";
-    rotateBtn.textContent = `Поворот: ${orientation === "horizontal" ? "Горизонтально" : "Вертикально"}`;
+    if (rotateBtn) {
+      rotateBtn.textContent = `Поворот: ${orientation === "horizontal" ? "Горизонтально" : "Вертикально"}`;
+    }
     updatePlacementInfo();
   });
 
   beginBattleBtn?.addEventListener("click", () => {
     if (!localReady) return;
     if (gameMode === "online" && !opponentReady) {
+      hasClickedStart = true;
       updateStatus("Очікування суперника...");
+      renderUI();
       return;
     }
     uiStage = "battle";
@@ -718,7 +739,18 @@ function renderUI() {
   const beginBtn = document.getElementById("beginBattleBtn") as HTMLButtonElement | null;
   if (beginBtn) {
     if (gameMode === "online") {
-      beginBtn.disabled = !localReady || !opponentReady;
+      if (!localReady) {
+        beginBtn.disabled = true;
+      } else if (!opponentReady) {
+        if (hasClickedStart) {
+          beginBtn.disabled = true;
+          beginBtn.textContent = "Очікування суперника...";
+        } else {
+          beginBtn.disabled = false;
+        }
+      } else {
+        beginBtn.disabled = false;
+      }
     } else {
       beginBtn.disabled = !localReady;
     }

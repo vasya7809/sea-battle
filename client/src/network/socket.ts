@@ -10,61 +10,47 @@ export type ServerMessage =
       sunk: boolean;
       winner: boolean;
       shipSize?: number;
+      sunkCoordinates?: { x: number; y: number }[];
     }
   | { type: "status"; message: string }
   | { type: "opponentLeft" };
 
+// Очищено: клієнт вміє лише підключатися, підтверджувати готовність та стріляти
 export type ClientMessage =
   | { type: "join" }
   | { type: "ready" }
-  | { type: "shoot"; x: number; y: number }
-  | {
-      type: "shotResult";
-      x: number;
-      y: number;
-      hit: boolean;
-      sunk: boolean;
-      winner: boolean;
-      shipSize?: number;
-    };
+  | { type: "shoot"; x: number; y: number };
 
 export interface SocketHandlers {
   onOpen?: () => void;
   onMatched?: (playerNumber: 1 | 2) => void;
   onOpponentReady?: () => void;
   onShoot?: (x: number, y: number) => void;
-  onShotResult?: (message: {
-    x: number;
-    y: number;
-    hit: boolean;
-    sunk: boolean;
-    winner: boolean;
-    shipSize?: number;
-  }) => void;
+  onShotResult?: (message: Extract<ServerMessage, { type: "shotResult" }>) => void; // Оптимізація типізації через хелпер
   onStatus?: (message: string) => void;
   onOpponentLeft?: () => void;
 }
 
 export const connectSocket = (handlers: SocketHandlers): WebSocket => {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  // Allow overriding the websocket URL via (in order): Vite env VITE_WS_URL, global variable, or the current browser host.
-  // `VITE_WS_URL` may include a full ws:// or wss:// URL, or just host[:port].
-  // @ts-ignore
-  const viteOverride = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_WS_URL : undefined;
-  const globalOverride = (window as any).__SEA_WS_URL__ as string | undefined;
-  const resolved = viteOverride ?? globalOverride ?? window.location.host;
-  const socketUrl = resolved.startsWith("ws://") || resolved.startsWith("wss://")
-    ? resolved
-    : `${protocol}://${resolved}`;
+  // Виправлено пріоритет: якщо є змінна оточення - беремо її, якщо ні - дивимось на режим збірки
+  const socketUrl = import.meta.env.VITE_WS_URL || 
+    (import.meta.env.PROD ? 'wss://sea-battle-idus.onrender.com' : 'ws://localhost:10000');
+  
+  console.log(`[WebSocket] Connecting to: ${socketUrl}`);
+  
   const socket = new WebSocket(socketUrl);
 
   socket.addEventListener("open", () => {
+    console.log("[WebSocket] Connected successfully");
     handlers.onOpen?.();
   });
 
   socket.addEventListener("message", (event) => {
     try {
-      const data = JSON.parse(event.data.toString()) as ServerMessage;
+      // Виправлено: event.data у браузері вже є string, toString() не потрібен
+      const data = JSON.parse(event.data) as ServerMessage;
+      console.log("[WebSocket] Message received:", data.type, data);
+      
       switch (data.type) {
         case "matched":
           handlers.onMatched?.(data.playerNumber);
@@ -76,14 +62,7 @@ export const connectSocket = (handlers: SocketHandlers): WebSocket => {
           handlers.onShoot?.(data.x, data.y);
           break;
         case "shotResult":
-          handlers.onShotResult?.({
-            x: data.x,
-            y: data.y,
-            hit: data.hit,
-            sunk: data.sunk,
-            winner: data.winner,
-            shipSize: data.shipSize,
-          });
+          handlers.onShotResult?.(data); // Спрощено передачу об'єкта
           break;
         case "status":
           handlers.onStatus?.(data.message);
@@ -91,18 +70,22 @@ export const connectSocket = (handlers: SocketHandlers): WebSocket => {
         case "opponentLeft":
           handlers.onOpponentLeft?.();
           break;
+        default:
+          console.warn("[WebSocket] Unknown message type:", (data as any).type);
       }
     } catch (error) {
-      handlers.onStatus?.("Отримано невідоме повідомлення від сервера.");
+      console.error("[WebSocket] Error parsing message:", error);
+      handlers.onStatus?.("Отримано некоректні дані від сервера.");
     }
   });
 
   socket.addEventListener("close", () => {
+    console.log("[WebSocket] Connection closed");
     handlers.onOpponentLeft?.();
   });
 
-  socket.addEventListener("error", () => {
-    console.error("WebSocket error");
+  socket.addEventListener("error", (event) => {
+    console.error("[WebSocket] Error:", event);
     handlers.onStatus?.("Не вдалося підключитися до сервера.");
   });
 

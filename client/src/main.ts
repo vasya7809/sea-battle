@@ -630,7 +630,7 @@ function renderUI() {
             <option value="bot" ${gameMode === "bot" ? "selected" : ""}>Проти бота</option>
             <option value="online" ${gameMode === "online" ? "selected" : ""}>Проти гравця</option>
           </select>
-          ${uiStage !== "placement" ? '<button id="newGameBtn" class="primary-btn">Нова гра</button>' : ''}
+          ${uiStage === "menu" || uiStage === "ended" ? '<button id="newGameBtn" class="primary-btn">Нова гра</button>' : ''}
           <button id="rotateBtn" class="secondary-btn">Поворот: ${orientation === "horizontal" ? "Горизонтально" : "Вертикально"}</button>
         </div>
         <div class="connection-status" id="connectionStatus">${connectionStatus}</div>
